@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✅ 진짜 암기 도우미</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 600px;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .options {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+        .options label {
+            cursor: pointer;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button {
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        #check-btn { background-color: #3498db; color: white; }
+        #hint-btn { background-color: #f1c40f; color: #fff; }
+        /* "정답 숨기기/보기" 버튼 스타일 추가 */
+        #toggle-visibility-btn { background-color: #8e44ad; color: white; }
+        
+        #retry-incorrect-btn { background-color: #2ecc71; color: white; }
+        #restart-btn { background-color: #95a5a6; color: white; }
+        
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+
+        #prompt-text {
+            background-color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 18px;
+            color: #2c3e50;
+            min-height: 50px;
+            line-height: 1.6;
+            transition: color 0.3s; /* 부드러운 전환 효과 */
+        }
+        
+        /* 🔥 이 클래스가 적용되면 프롬프트 텍스트가 가려짐 */
+        #prompt-text.obscured {
+            color: transparent; /* 글자 색을 투명하게 */
+            background-color: #dce1e2;
+            user-select: none; /* 텍스트 선택 방지 */
+        }
+
+        #feedback {
+            margin-top: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            min-height: 25px;
+        }
+
+        .correct { color: #2ecc71; }
+        .incorrect { color: #e74c3c; }
+        .hint { color: #e67e22; }
+
+        #progress {
+            margin-bottom: 10px;
+            color: #7f8c8d;
+            font-weight: bold;
+        }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>✅ 진짜 암기 도우미</h1>
+
+        <div id="setup-area">
+            <p>암기할 내용을 한 줄에 한 문장씩 입력하세요.</p>
+            <textarea id="text-input" rows="10" placeholder="여기에 암기할 내용을 입력..."></textarea>
+            <div class="options">
+                <input type="checkbox" id="shuffle-checkbox">
+                <label for="shuffle-checkbox">순서 섞기</label>
+            </div>
+            <button id="start-btn">암기 시작</button>
+        </div>
+
+        <div id="memorize-area" class="hidden">
+            <div id="progress"></div>
+            <div id="prompt-text"></div>
+            <textarea id="answer-input" rows="4" placeholder="정답을 숨긴 후, 외운 내용을 입력해 보세요."></textarea>
+            <div class="button-group">
+                <button id="check-btn">확인</button>
+                <button id="hint-btn">힌트</button>
+                <button id="toggle-visibility-btn">정답 숨기기</button>
+            </div>
+            <div id="feedback"></div>
+        </div>
+        
+        <div id="end-game-area" class="hidden">
+             <div class="button-group">
+                <button id="retry-incorrect-btn">오답만 다시하기</button>
+                <button id="restart-btn">처음부터 다시하기</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // HTML 요소
+        const setupArea = document.getElementById('setup-area');
+        const memorizeArea = document.getElementById('memorize-area');
+        const endGameArea = document.getElementById('end-game-area');
+        const textInput = document.getElementById('text-input');
+        const shuffleCheckbox = document.getElementById('shuffle-checkbox');
+        const startBtn = document.getElementById('start-btn');
+        const progressText = document.getElementById('progress');
+        const promptText = document.getElementById('prompt-text');
+        const answerInput = document.getElementById('answer-input');
+        const checkBtn = document.getElementById('check-btn');
+        const hintBtn = document.getElementById('hint-btn');
+        const toggleVisibilityBtn = document.getElementById('toggle-visibility-btn'); // 새 버튼 요소
+        const feedback = document.getElementById('feedback');
+        const retryIncorrectBtn = document.getElementById('retry-incorrect-btn');
+        const restartBtn = document.getElementById('restart-btn');
+
+        // 상태 변수
+        let originalSentences = [];
+        let currentSentences = [];
+        let incorrectSentences = new Set();
+        let currentIndex = 0;
+        let hintLevel = 0;
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+        
+        function startGame(sentencesToUse) {
+            currentSentences = [...sentencesToUse];
+            if (shuffleCheckbox.checked) {
+                shuffleArray(currentSentences);
+            }
+            incorrectSentences.clear();
+            currentIndex = 0;
+
+            setupArea.classList.add('hidden');
+            endGameArea.classList.add('hidden');
+            memorizeArea.classList.remove('hidden');
+            answerInput.classList.remove('hidden');
+
+            loadSentence();
+        }
+
+        function loadSentence() {
+            if (currentIndex < currentSentences.length) {
+                // 다음 문제로 넘어갈 때 기본적으로 정답이 보이도록 설정
+                promptText.classList.remove('obscured');
+                toggleVisibilityBtn.textContent = '정답 숨기기';
+                
+                progressText.textContent = `진행 상황: ${currentIndex + 1} / ${currentSentences.length}`;
+                promptText.textContent = currentSentences[currentIndex];
+                answerInput.value = '';
+                answerInput.disabled = false;
+                feedback.textContent = '';
+                feedback.className = '';
+                checkBtn.textContent = '확인';
+                checkBtn.disabled = false;
+                hintBtn.disabled = false;
+                hintLevel = 0;
+                hintBtn.textContent = '힌트';
+
+                checkBtn.onclick = checkAnswer;
+                answerInput.focus();
+            } else {
+                finishGame();
+            }
+        }
+        
+        function checkAnswer() {
+            const correctAnswer = currentSentences[currentIndex].trim();
+            const userAnswer = answerInput.value.trim();
+
+            if (userAnswer === correctAnswer) {
+                feedback.textContent = '정답입니다! 👏';
+                feedback.className = 'correct';
+                // 정답을 맞히면 다음 버튼으로 변경
+                checkBtn.textContent = '다음';
+                checkBtn.onclick = () => {
+                    currentIndex++;
+                    loadSentence();
+                };
+            } else {
+                feedback.textContent = '오답입니다. 다시 시도해보세요. 🤔';
+                feedback.className = 'incorrect';
+                incorrectSentences.add(currentSentences[currentIndex]);
+            }
+        }
+        
+        function finishGame() {
+            memorizeArea.classList.add('hidden');
+            endGameArea.classList.remove('hidden');
+            
+            let finishMessage = '🎉 모든 문장을 완벽하게 암기했습니다!';
+            if (incorrectSentences.size > 0) {
+                finishMessage = `도전 완료! 오답은 ${incorrectSentences.size}개 입니다.`;
+                retryIncorrectBtn.classList.remove('hidden');
+            } else {
+                retryIncorrectBtn.classList.add('hidden');
+            }
+            setupArea.classList.remove('hidden');
+            alert(finishMessage);
+        }
+        
+        // "정답 숨기기/보기" 버튼 이벤트
+        toggleVisibilityBtn.addEventListener('click', () => {
+            promptText.classList.toggle('obscured');
+            if (promptText.classList.contains('obscured')) {
+                toggleVisibilityBtn.textContent = '정답 보기';
+            } else {
+                toggleVisibilityBtn.textContent = '정답 숨기기';
+            }
+        });
+
+        startBtn.addEventListener('click', () => {
+            const rawText = textInput.value.trim();
+            if (rawText === '') {
+                alert('암기할 내용을 입력해주세요.');
+                return;
+            }
+            originalSentences = rawText.split('\n').filter(line => line.trim() !== '');
+            if (originalSentences.length > 0) {
+                startGame(originalSentences);
+            } else {
+                alert('암기할 문장이 없습니다.');
+            }
+        });
+
+        answerInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                checkBtn.click();
+            }
+        });
+        
+        hintBtn.addEventListener('click', () => {
+            hintLevel++;
+            const correctAnswer = currentSentences[currentIndex];
+            // 힌트를 누르면 정답이 보이도록 처리
+            promptText.classList.remove('obscured');
+            toggleVisibilityBtn.textContent = '정답 숨기기';
+            
+            if (hintLevel >= correctAnswer.length) {
+                feedback.textContent = `힌트: ${correctAnswer}`;
+                hintBtn.disabled = true;
+            } else {
+                const hintText = correctAnswer.substring(0, hintLevel) + '...';
+                feedback.textContent = `힌트: ${hintText}`;
+            }
+            feedback.className = 'hint';
+        });
+        
+        retryIncorrectBtn.addEventListener('click', () => {
+            startGame(Array.from(incorrectSentences));
+        });
+
+        restartBtn.addEventListener('click', () => {
+             startGame(originalSentences);
+        });
+
+    </script>
+
+</body>
+</html>
